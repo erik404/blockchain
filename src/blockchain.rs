@@ -1,10 +1,12 @@
 use crate::block::*;
 use crate::transaction::Transaction;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub(crate) struct Blockchain {
     pub(crate) chain: Vec<Block>,
     pub(crate) mempool: Vec<Transaction>,
+    pub(crate) accounts: HashMap<String, u64>,
     difficulty: usize,
 }
 
@@ -13,20 +15,21 @@ impl Blockchain {
     pub(crate) fn new(difficulty: usize) -> Self {
         let genesis_block: Block = Block::new(
             0,
-            vec![Transaction::new("Genesis Block".to_string())],
-            "0".to_string(),
+            vec![Transaction::new("".to_string(), "".to_string(), 0)],
+            "GENESIS_BLOCK".to_string(),
             difficulty,
         );
         Blockchain {
             chain: vec![genesis_block],
             mempool: vec![],
+            accounts: HashMap::new(),
             difficulty,
         }
     }
 
     // Add a new block to the blockchain
     pub(crate) fn add_block(&mut self) {
-        let valid_transactions: Vec<Transaction> = self.process_mempool();
+        let valid_transactions: Vec<Transaction> = self.process_mempool().unwrap(); // todo, think about error handling
         let last_block: &Block = self.chain.last().unwrap();
 
         let new_block: Block = Block::new(
@@ -40,40 +43,49 @@ impl Blockchain {
         self.is_valid();
     }
 
-    fn process_mempool(&mut self) -> Vec<Transaction> {
-        let mut valid_transactions: Vec<Transaction> = vec![];
+    // Process the memory pool
+    fn process_mempool(&mut self) -> Result<Vec<Transaction>, String> {
+        let mut processed_transactions: Vec<Transaction> = vec![];
         for transaction in &self.mempool {
-            if let Ok(_) = self.validate_transaction(&transaction) {
-                // TODO validate logic using Account Model
-                valid_transactions.push(transaction.clone());
-            } else {
-                eprintln!("{:#?} is not valid!", transaction);
+            match self.validate_transaction(transaction) {
+                Ok(_) => {
+                    // Deduct balance from the sender
+                    *self.accounts.entry(transaction.sender.clone()).or_insert(0) -= transaction.amount;
+                    // Add balance to the receiver
+                    *self
+                        .accounts
+                        .entry(transaction.receiver.clone())
+                        .or_insert(0) += transaction.amount;
+                    // Add the transaction to the vec
+                    processed_transactions.push(transaction.clone());
+                }
+                Err(why) => {
+                    eprintln!("{:?}", why);
+                }
             }
         }
         self.mempool.clear();
-        valid_transactions
+        Ok(processed_transactions)
     }
 
-    fn validate_transaction(&self, _transaction: &Transaction) -> Result<(), String> {
-        // // Ensure sender has enough balance
-        // if let Some(balance) = self.balances.get(&transaction.sender) {
-        //     if *balance < transaction.amount {
-        //         return Err(format!(
-        //             "Insufficient balance: {} has {} but tried to send {}",
-        //             transaction.sender, balance, transaction.amount
-        //         ));
-        //     }
-        // } else {
-        //     return Err(format!(
-        //         "Sender {} does not have an account",
-        //         transaction.sender
-        //     ));
-        // }
-        //
-        // // Ensure the transaction amount is positive
-        // if transaction.amount == 0 {
-        //     return Err("Transaction amount must be greater than zero".to_string());
-        // }
+    // Validate the transaction
+    fn validate_transaction(&self, transaction: &Transaction) -> Result<(), String> {
+        // Check if the sender has enough balance
+        if let Some(balance) = self.accounts.get(&transaction.sender) {
+            if *balance < transaction.amount {
+                return Err(format!(
+                    "Insufficient balance: {} has {} but tried to send {}",
+                    transaction.sender, balance, transaction.amount
+                ));
+            }
+        } else {
+            return Err(format!("Sender {} does not exist", transaction.sender));
+        }
+
+        // Ensure the amount is positive
+        if transaction.amount == 0 {
+            return Err("Transaction amount must be greater than zero".to_string());
+        }
 
         Ok(())
     }

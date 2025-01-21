@@ -10,21 +10,28 @@ fn main() {
 
     let mut blockchain: Blockchain = Blockchain::new(4);
 
-    blockchain.mempool.push(Transaction::new("Transaction 1".to_string()));
-    blockchain.mempool.push(Transaction::new("Transaction 2".to_string()));
-    blockchain.mempool.push(Transaction::new("Transaction 3".to_string()));
-    blockchain.mempool.push(Transaction::new("Transaction 4".to_string()));
+    // Initialize balances
+    blockchain.accounts.insert("Alice".to_string(), 100);
+    blockchain.accounts.insert("Bob".to_string(), 50);
+
+    println!("Account Balances: {:#?}", blockchain.accounts);
+    
+    blockchain.mempool.push(Transaction::new(
+        "Alice".to_string(), "Bob".to_string(), 20
+    ));
+
+    blockchain.mempool.push(Transaction::new(
+        "Bob".to_string(), "Alice".to_string(), 10
+    ));
+
+    blockchain.mempool.push(Transaction::new(
+        "David".to_string(), "Charlie".to_string(), 10
+    ));
 
     blockchain.add_block();
+    
+    // Print the blockchain and account balances
+    println!("Blockchain: {:#?}", blockchain);
 
-    blockchain.mempool.push(Transaction::new("Transaction 5".to_string()));
-    blockchain.mempool.push(Transaction::new("Transaction 6".to_string()));
-    blockchain.mempool.push(Transaction::new("Transaction 7".to_string()));
-    blockchain.mempool.push(Transaction::new("Transaction 8".to_string()));
-
-    blockchain.add_block();
-
-    for block in blockchain.chain.iter() {
-        println!("{:#?}", block);
-    }
+    
 }
