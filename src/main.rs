@@ -7,23 +7,24 @@ mod blockchain;
 mod transaction;
 
 fn main() {
-    // let mut blockchain = Blockchain::new();
-    let mut blockchain = Blockchain::new(4); // Set difficulty to 4
 
-    let transaction: Transaction = Transaction { value: "Block 1: First transaction".to_string() };
-    let transaction_2: Transaction = Transaction { value: "Block 1: Second transaction".to_string() };
-    blockchain.add_block(vec![transaction, transaction_2]);
+    let mut blockchain: Blockchain = Blockchain::new(4);
 
-    let transaction: Transaction = Transaction { value: "Block 2: First transaction".to_string() };
-    let transaction_2: Transaction = Transaction { value: "Block 2: Second transaction".to_string() };
-    blockchain.add_block(vec![transaction, transaction_2]);
+    blockchain.mempool.push(Transaction::new("Transaction 1".to_string()));
+    blockchain.mempool.push(Transaction::new("Transaction 2".to_string()));
+    blockchain.mempool.push(Transaction::new("Transaction 3".to_string()));
+    blockchain.mempool.push(Transaction::new("Transaction 4".to_string()));
 
+    blockchain.add_block();
 
-    // Print the blockchain
+    blockchain.mempool.push(Transaction::new("Transaction 5".to_string()));
+    blockchain.mempool.push(Transaction::new("Transaction 6".to_string()));
+    blockchain.mempool.push(Transaction::new("Transaction 7".to_string()));
+    blockchain.mempool.push(Transaction::new("Transaction 8".to_string()));
+
+    blockchain.add_block();
+
     for block in blockchain.chain.iter() {
         println!("{:#?}", block);
     }
-
-    println!("Original Blockchain Valid: {}", blockchain.is_valid());
-
 }
