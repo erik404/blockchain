@@ -1,4 +1,5 @@
 use crate::block::*;
+use crate::transaction::Transaction;
 
 #[derive(Debug)]
 pub(crate) struct Blockchain {
@@ -9,7 +10,10 @@ pub(crate) struct Blockchain {
 impl Blockchain {
     // Create a new blockchain with a genesis block
     pub(crate) fn new(difficulty: usize) -> Self {
-        let genesis_block = Block::new(0, vec!["Genesis Block".to_string()], "0".to_string(), difficulty);
+        let transaction: Transaction = Transaction {
+            value: "Genesis Block".to_string(),
+        };
+        let genesis_block = Block::new(0, vec![transaction], "0".to_string(), difficulty);
         Blockchain {
             chain: vec![genesis_block],
             difficulty,
@@ -17,13 +21,13 @@ impl Blockchain {
     }
 
     // Add a new block to the blockchain
-    pub(crate) fn add_block(&mut self, transactions: Vec<String>) {
+    pub(crate) fn add_block(&mut self, transactions: Vec<Transaction>) {
         let last_block = self.chain.last().unwrap();
         let new_block = Block::new(
             last_block.index + 1,
             transactions,
             last_block.hash.clone(),
-            self.difficulty
+            self.difficulty,
         );
         self.chain.push(new_block);
     }
@@ -46,7 +50,7 @@ impl Blockchain {
                 &current_block.timestamp,
                 &current_block.transactions,
                 &current_block.previous_hash,
-                current_block.nonce
+                current_block.nonce,
             );
             if current_block.hash != recalculated_hash {
                 println!("Block {} has invalid hash!", current_block.index);

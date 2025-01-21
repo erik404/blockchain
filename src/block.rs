@@ -1,11 +1,12 @@
 use chrono::prelude::*;
 use sha2::{Digest, Sha256};
+use crate::transaction::Transaction;
 
 #[derive(Debug)]
 pub(crate) struct Block {
     pub(crate) index: u32,
     pub(crate) timestamp: String,
-    pub(crate) transactions: Vec<String>,
+    pub(crate) transactions: Vec<Transaction>,
     pub(crate) previous_hash: String,
     pub(crate) hash: String,
     pub(crate) nonce: u64,
@@ -13,7 +14,7 @@ pub(crate) struct Block {
 
 impl Block {
 
-    pub(crate) fn new(index: u32, transactions: Vec<String>, previous_hash: String, difficulty: usize) -> Self {
+    pub(crate) fn new(index: u32, transactions: Vec<Transaction>, previous_hash: String, difficulty: usize) -> Self {
         let timestamp = Utc::now().to_rfc3339();
         let mut block: Block = Block {
             index,
@@ -38,7 +39,7 @@ impl Block {
         println!("Block mined: {}", self.hash);
     }
 
-    pub(crate) fn calculate_hash(index: u32, timestamp: &str, transactions: &Vec<String>, previous_hash: &str, nonce: u64) -> String {
+    pub(crate) fn calculate_hash(index: u32, timestamp: &str, transactions: &Vec<Transaction>, previous_hash: &str, nonce: u64) -> String {
         let input = format!("{}{}{:#?}{}{}", index, timestamp, transactions, previous_hash, nonce);
         let mut hasher = Sha256::new();
         hasher.update(input);
