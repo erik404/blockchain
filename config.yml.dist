@@ -5,3 +5,4 @@ token:
   total_supply: 21000000
 blockchain:
   difficulty: 3
+  genesis_name: GENESIS
