@@ -14,8 +14,10 @@ pub struct TokenConfig {
 /// Configuration for the blockchain.
 #[derive(Debug, Deserialize)]
 pub struct BlockchainConfig {
-    pub genesis_name: String, // Name of the genesis block
-    pub difficulty: usize,    // Mining difficulty level
+    pub genesis_name: String,   // Name of the genesis block
+    pub difficulty: usize,      // Mining difficulty level
+    pub genesis_pre_mined: u64, // The token amount that is mined at Genesis
+    pub genesis_miner: String,  // The name or account that mined Genesis
 }
 
 /// Main configuration struct combining token and blockchain settings.

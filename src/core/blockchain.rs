@@ -30,7 +30,10 @@ impl Blockchain {
 
         // Initialize accounts with a pre-mined balance
         let mut accounts: HashMap<String, u64> = HashMap::new();
-        accounts.insert("Developer".to_string(), 2_100_000_000_000_000); // Pre-mined 10%
+        accounts.insert(
+            config.blockchain.genesis_miner,
+            config.blockchain.genesis_pre_mined,
+        );
 
         // Create the genesis block
         let genesis_block = Block::new(
@@ -58,7 +61,7 @@ impl Blockchain {
     pub fn add_block(&mut self) {
         // Process the mempool and collect valid transactions
         let processed_transactions: Vec<Transaction> = self.process_mempool(); // TODO: Consider error handling for invalid transactions
-        // Get the last block in the chain
+                                                                               // Get the last block in the chain
         let last_block: &Block = self.chain.last().unwrap();
 
         // Create a new block with valid transactions
@@ -207,6 +210,8 @@ mod tests {
     const TOTAL_SUPPLY: u64 = 200_000_000_000;
     const GENESIS_NAME: &str = "genesis_name";
     const DIFFICULTY: usize = 2;
+    const GENESIS_PRE_MINED: u64 = 2000000000000000000;
+    const GENESIS_MINER: &str = "Miner";
 
     // Helper function to create a mock configuration for testing
     fn mock_config() -> Config {
@@ -220,6 +225,8 @@ mod tests {
             blockchain: BlockchainConfig {
                 genesis_name: GENESIS_NAME.to_string(),
                 difficulty: DIFFICULTY,
+                genesis_pre_mined: GENESIS_PRE_MINED,
+                genesis_miner: GENESIS_MINER.to_string(),
             },
         }
     }
