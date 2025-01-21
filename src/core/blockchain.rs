@@ -57,22 +57,20 @@ impl Blockchain {
     /// - Validates the entire blockchain after adding the block.
     pub fn add_block(&mut self) {
         // Process the mempool and collect valid transactions
-        let valid_transactions: Vec<Transaction> = self.process_mempool(); // TODO: Consider error handling for invalid transactions
-
+        let processed_transactions: Vec<Transaction> = self.process_mempool(); // TODO: Consider error handling for invalid transactions
         // Get the last block in the chain
         let last_block: &Block = self.chain.last().unwrap();
 
         // Create a new block with valid transactions
         let new_block: Block = Block::new(
             last_block.index + 1,
-            valid_transactions,
+            processed_transactions,
             last_block.hash.clone(),
             self.difficulty,
         );
 
         // Add the new block to the blockchain
         self.chain.push(new_block);
-
         // Validate the blockchain after adding the new block
         self.is_valid();
     }
@@ -113,8 +111,7 @@ impl Blockchain {
 
         // Clear the mempool after processing
         self.mempool.clear();
-
-        // Return the successfully processed transactions
+        // Return the processed transactions
         processed_transactions
     }
 
