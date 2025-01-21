@@ -1,19 +1,19 @@
-use crate::transaction::Transaction;
+use crate::structs::transaction::Transaction;
 use chrono::prelude::*;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
-pub(crate) struct Block {
-    pub(crate) index: u32,
-    pub(crate) timestamp: String,
-    pub(crate) transactions: Vec<Transaction>,
-    pub(crate) previous_hash: String,
-    pub(crate) hash: String,
-    pub(crate) nonce: u64,
+pub struct Block {
+    pub index: u32,
+    pub timestamp: String,
+    pub transactions: Vec<Transaction>,
+    pub previous_hash: String,
+    pub hash: String,
+    pub nonce: u64,
 }
 
 impl Block {
-    pub(crate) fn new(
+    pub fn new(
         index: u32,
         transactions: Vec<Transaction>,
         previous_hash: String,
@@ -54,7 +54,7 @@ impl Block {
         println!("Block mined: {}", self.hash);
     }
 
-    pub(crate) fn calculate_hash(
+    pub fn calculate_hash(
         index: u32,
         timestamp: &str,
         transactions: &Vec<Transaction>,

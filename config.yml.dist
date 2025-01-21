@@ -1,0 +1,7 @@
+token:
+  name: "MyToken"
+  symbol: "MSH"
+  decimals: 8
+  total_supply: 21000000
+blockchain:
+  difficulty: 3
