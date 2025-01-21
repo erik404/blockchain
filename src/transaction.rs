@@ -13,4 +13,7 @@ impl Transaction {
             amount,
         }
     }
+    pub(crate) fn stringify(&self) -> String {
+        format!("{}{}{}", self.sender, self.receiver, self.amount)
+    }
 }

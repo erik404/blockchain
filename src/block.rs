@@ -40,7 +40,7 @@ impl Block {
     }
 
     fn mine(&mut self, difficulty: usize) {
-        let target = "0".repeat(difficulty); // Target hash must start with 'difficulty' number of zeroes
+        let target = "0".repeat(difficulty);
         while !self.hash.starts_with(&target) {
             self.nonce += 1;
             self.hash = Block::calculate_hash(
@@ -62,11 +62,23 @@ impl Block {
         nonce: u64,
     ) -> String {
         let input = format!(
-            "{}{}{:?}{}{}",
-            index, timestamp, transactions, previous_hash, nonce
+            "{}{}{}{}{}",
+            index,
+            timestamp,
+            Self::transactions_string(transactions),
+            previous_hash,
+            nonce
         );
         let mut hasher = Sha256::new();
         hasher.update(input);
         hex::encode(hasher.finalize())
+    }
+
+    fn transactions_string(transactions: &Vec<Transaction>) -> String {
+        let mut transactions_string: String = String::new();
+        for transaction in transactions {
+            transactions_string.push_str(transaction.stringify().as_str());
+        }
+        transactions_string
     }
 }
