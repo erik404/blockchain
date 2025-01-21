@@ -8,4 +8,4 @@ blockchain:
   difficulty: 3
   genesis_name: GENESIS
   genesis_miner: MINER
-  genesis_pre_mined: 2000000000000000000 # Pre-mined amount in smallest units
+  genesis_pre_mined: 2000000000000000000 # Pre-mined amount in smallest units (10% of total_supply)
