@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::{env, fs};
 
 /// Configuration for the token.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct TokenConfig {
     pub name: String,      // Token name (e.g., "TestCoin")
     pub symbol: String,    // Token symbol (e.g., "TST")
@@ -12,16 +12,16 @@ pub struct TokenConfig {
 }
 
 /// Configuration for the blockchain.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct BlockchainConfig {
-    pub genesis_name: String,   // Name of the genesis block
+    pub genesis_hash: String,   // Name of the genesis block
     pub difficulty: usize,      // Mining difficulty level
     pub genesis_pre_mined: u64, // The token amount that is mined at Genesis
     pub genesis_miner: String,  // The name or account that mined Genesis
 }
 
 /// Main configuration struct combining token and blockchain settings.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub token: TokenConfig,           // Token configuration
     pub blockchain: BlockchainConfig, // Blockchain configuration
