@@ -1,5 +1,5 @@
 /// Represents a cryptocurrency token in the blockchain.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Token {
     pub name: String,       // Name of the token (e.g., "TestCoin")
     pub symbol: String,     // Symbol of the token (e.g., "TST")
@@ -12,7 +12,7 @@ impl Token {
     /// Creates a new Token instance.
     /// - Calculates the smallest unit based on the number of decimals.
     pub fn new(name: String, symbol: String, decimals: u8, total_supply: u64) -> Self {
-        let smallest_unit = 10u64.pow(decimals as u32); // Calculate smallest unit (10^decimals)
+        let smallest_unit: u64 = 10u64.pow(decimals as u32); // Calculate smallest unit (10^decimals)
         Token {
             name,
             symbol,
