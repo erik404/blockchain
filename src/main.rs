@@ -2,6 +2,14 @@ use crate::config::Config;
 use crate::core::blockchain::Blockchain;
 use crate::structs::transaction::Transaction;
 
+pub mod tests {
+    pub mod helpers;
+}
+
+pub mod errors {
+    pub mod transaction_errors;
+}
+
 pub mod config;
 
 pub mod core {
@@ -15,7 +23,7 @@ pub mod structs {
 }
 fn main() {
     let config: Config = Config::load();
-    let mut blockchain: Blockchain = Blockchain::new(config);
+    let mut blockchain: Blockchain = Blockchain::new(config).unwrap();
 
     blockchain
         .accounts
