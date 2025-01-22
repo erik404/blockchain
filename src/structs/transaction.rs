@@ -1,5 +1,5 @@
 /// Represents a blockchain transaction.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction {
     pub sender: String,   // Address of the sender
     pub receiver: String, // Address of the receiver
