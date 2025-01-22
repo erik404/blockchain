@@ -81,10 +81,10 @@ impl Blockchain {
         );
         // Validate block with the network
         // TODO
-        
+
         // Add the new block to the chain
         self.chain.push(new_block);
-        
+
         // Validate the blockchain after adding the new block
         if !self.is_valid() {
             eprintln!(
@@ -94,7 +94,7 @@ impl Blockchain {
             self.chain.pop();
             return;
         }
-        
+
         // Execute transactions
         self.execute_transactions(&valid_transactions);
     }
@@ -119,7 +119,15 @@ impl Blockchain {
         self.mempool.clear(); // todo not sure if clearing the mempool here is the right spot
         valid_transactions
     }
-    
+
+    /// Executes a list of valid transactions and updates the account balances accordingly.
+    ///
+    /// This function iterates over the provided list of valid transactions and:
+    /// - Deducts the transaction amount from the sender's balance.
+    /// - Adds the transaction amount to the receiver's balance.
+    ///
+    /// It assumes that all transactions in the provided list are already validated and
+    /// no further validation is performed.
     fn execute_transactions(&mut self, valid_transactions: &Vec<Transaction>) {
         // Execute the transactions and update account balances
         for transaction in valid_transactions {
@@ -132,51 +140,52 @@ impl Blockchain {
                 .or_insert(0) += transaction.amount;
         }
     }
-
-
-
+    
+    /// Validates a transaction and updates temporary balances if the transaction is valid.
+    ///
+    /// This function performs the following checks:
+    /// - Ensures that the sender and receiver addresses are not empty.
+    /// - Ensures that the sender and receiver are not the same address.
+    /// - Ensures that the transaction amount is greater than zero.
+    /// - Ensures that the sender has sufficient balance in the provided temporary balances.
+    ///
+    /// If all validations pass, the transaction amount is deducted from the sender's balance
+    /// and added to the receiver's balance in the provided `temp_balances` map.
+    ///
     fn validate_transaction_with_temp_balances(
         &self,
         transaction: &Transaction,
         temp_balances: &mut HashMap<String, u64>,
     ) -> Result<(), TransactionError> {
-        // Ensure sender and receiver addresses are valid
         if transaction.sender.is_empty() || transaction.receiver.is_empty() {
-            return Err(TransactionError::AddressesCannotBeEmpty);
+            return Err(TransactionError::AddressCannotBeEmpty);
         }
-        // Ensure that the sender is not sending to itself
         if transaction.sender == transaction.receiver {
             return Err(TransactionError::SenderAndReceiverCannotBeTheSame);
         }
-        // Ensure the transaction amount is greater than zero
         if transaction.amount == 0 {
             return Err(TransactionError::AmountMustBeGreaterThanZero);
         }
-        // Check if the sender has enough tokens in the temporary balance map
-        if let Some(balance) = temp_balances.get_mut(&transaction.sender) {
-            if *balance >= transaction.amount {
-                // Deduct the transaction amount from the temporary balance
-                *balance -= transaction.amount;
-
-                // Add the transaction amount to the receiver's temporary balance
-                *temp_balances
-                    .entry(transaction.receiver.clone())
-                    .or_insert(0) += transaction.amount;
-            } else {
-                return Err(TransactionError::InsufficientBalance {
-                    sender: transaction.sender.clone(),
-                    requested: transaction.amount,
-                    available: *balance,
-                });
-            }
-        } else {
-            return Err(TransactionError::SenderDoesNotExist {
+        
+        let sender_balance: &mut u64 = temp_balances.get_mut(&transaction.sender)
+            .ok_or(TransactionError::SenderDoesNotExist {
                 sender: transaction.sender.clone(),
+            })?;
+        if *sender_balance < transaction.amount {
+            return Err(TransactionError::InsufficientBalance {
+                sender: transaction.sender.clone(),
+                requested: transaction.amount,
+                available: *sender_balance,
             });
         }
 
+        // Update balances
+        *sender_balance -= transaction.amount;
+        *temp_balances.entry(transaction.receiver.clone()).or_insert(0) += transaction.amount;
+
         Ok(())
     }
+
 
     /// Validates the blockchain integrity.
     /// Ensures hashes match and blocks are correctly linked.
