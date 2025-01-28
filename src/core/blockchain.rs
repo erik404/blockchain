@@ -1,3 +1,4 @@
+use crate::common::calculate_hash::calculate_block_hash;
 use crate::config::Config;
 use crate::core::block::*;
 use crate::errors::transaction_errors::*;
@@ -8,11 +9,11 @@ use std::collections::HashMap;
 /// Represents the blockchain structure.
 #[derive(Debug)]
 pub struct Blockchain {
-    pub chain: Vec<Block>,              // Sequence of blocks forming the blockchain
-    pub token: Token,                   // Information about the blockchain's native token
-    pub mempool: Vec<Transaction>,      // Pool of pending transactions
-    pub accounts: HashMap<String, u64>, // Map of account addresses to balances
-    difficulty: usize,                  // Mining difficulty level
+    pub chain: Vec<Block>,
+    pub token: Token,
+    pub mempool: Vec<Transaction>,
+    pub accounts: HashMap<String, u64>,
+    difficulty: usize,
 }
 
 impl Blockchain {
@@ -26,7 +27,7 @@ impl Blockchain {
         }
 
         // Initialize the token based on the provided configuration
-        let token: Token = Token::new(
+        let token = Token::new(
             config.token.name.clone(),
             config.token.symbol.clone(),
             config.token.decimals,
@@ -68,24 +69,25 @@ impl Blockchain {
         // Process the mempool and collect valid transactions
         let valid_transactions: Vec<Transaction> = self.process_mempool();
 
-        // Get the last block and create the new index
-        let last_block: &Block = self.chain.last().unwrap();
-        let new_block_index: u32 = last_block.index + 1;
+        if valid_transactions.is_empty() {
+            return; // Never create a new block when there are no transactions
+        }
 
-        // Create a new block with valid transactions
-        let new_block: Block = Block::new(
+        let last_block = self.chain.last().unwrap();
+        let new_block_index = last_block.index + 1;
+
+        let new_block = Block::new(
             new_block_index,
             valid_transactions.clone(),
             last_block.hash.clone(),
             self.difficulty,
         );
+
         // Validate block with the network
         // TODO
 
-        // Add the new block to the chain
         self.chain.push(new_block);
 
-        // Validate the blockchain after adding the new block
         if !self.is_valid() {
             eprintln!(
                 "Blockchain is invalid after adding block {}. Rolling back.",
@@ -95,7 +97,6 @@ impl Blockchain {
             return;
         }
 
-        // Execute transactions
         self.execute_transactions(&valid_transactions);
     }
 
@@ -111,11 +112,9 @@ impl Blockchain {
                 eprintln!("Transaction validation failed: {}", why);
                 continue;
             }
-            // Add transaction to the list of valid transactions
             valid_transactions.push(transaction.clone());
         }
 
-        // Clear the mempool after processing
         self.mempool.clear(); // todo not sure if clearing the mempool here is the right spot
         valid_transactions
     }
@@ -129,18 +128,15 @@ impl Blockchain {
     /// It assumes that all transactions in the provided list are already validated and
     /// no further validation is performed.
     fn execute_transactions(&mut self, valid_transactions: &Vec<Transaction>) {
-        // Execute the transactions and update account balances
         for transaction in valid_transactions {
-            // Deduct the transaction amount from the sender's balance
             *self.accounts.entry(transaction.sender.clone()).or_insert(0) -= transaction.amount;
-            // Add the transaction amount to the receiver's balance
             *self
                 .accounts
                 .entry(transaction.receiver.clone())
                 .or_insert(0) += transaction.amount;
         }
     }
-    
+
     /// Validates a transaction and updates temporary balances if the transaction is valid.
     ///
     /// This function performs the following checks:
@@ -166,11 +162,12 @@ impl Blockchain {
         if transaction.amount == 0 {
             return Err(TransactionError::AmountMustBeGreaterThanZero);
         }
-        
-        let sender_balance: &mut u64 = temp_balances.get_mut(&transaction.sender)
-            .ok_or(TransactionError::SenderDoesNotExist {
+
+        let sender_balance: &mut u64 = temp_balances.get_mut(&transaction.sender).ok_or(
+            TransactionError::SenderDoesNotExist {
                 sender: transaction.sender.clone(),
-            })?;
+            },
+        )?;
         if *sender_balance < transaction.amount {
             return Err(TransactionError::InsufficientBalance {
                 sender: transaction.sender.clone(),
@@ -181,11 +178,12 @@ impl Blockchain {
 
         // Update balances
         *sender_balance -= transaction.amount;
-        *temp_balances.entry(transaction.receiver.clone()).or_insert(0) += transaction.amount;
+        *temp_balances
+            .entry(transaction.receiver.clone())
+            .or_insert(0) += transaction.amount;
 
         Ok(())
     }
-
 
     /// Validates the blockchain integrity.
     /// Ensures hashes match and blocks are correctly linked.
@@ -202,7 +200,7 @@ impl Blockchain {
             }
 
             // Recalculate the current block's hash and validate it
-            let recalculated_hash: String = Block::calculate_hash(
+            let recalculated_hash: String = calculate_block_hash(
                 current_block.index,
                 &current_block.timestamp,
                 &current_block.transactions,
@@ -222,455 +220,582 @@ impl Blockchain {
     /// Scans all blocks in the chain and filters transactions involving the address.
     pub fn get_transaction_history(&self, address: &String) -> Vec<Transaction> {
         self.chain
-            .iter() // Iterate over all blocks in the blockchain
+            .iter()
             .flat_map(|block| {
                 block
-                    .transactions // Access transactions in the block
-                    .iter() // Iterate over transactions
-                    .filter(|tx| tx.sender == *address || tx.receiver == *address) // Filter transactions involving the address
-                    .cloned() // Clone transactions to avoid borrowing issues
+                    .transactions
+                    .iter()
+                    .filter(|tx| tx.sender == *address || tx.receiver == *address)
+                    .cloned()
             })
-            .collect() // Collect matching transactions into a Vec
+            .collect()
     }
 }
 
 #[cfg(test)]
-#[path = "../tests/core/blockchain_test.rs"]
-mod blockchain_test;
+mod tests {
+    use super::*;
+    use crate::common::calculate_hash::calculate_block_hash;
+    use crate::test_utils::mock_config;
+    #[test]
+    fn validate_genesis_block() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::config::{BlockchainConfig, TokenConfig};
-//     use std::collections::HashMap;
-//
-//     // Constants for mock configuration
-//     const TOKEN_NAME: &str = "test_name";
-//     const TOKEN_SYMBOL: &str = "test_symbol";
-//     const DECIMALS: u8 = 10;
-//     const TOTAL_SUPPLY: u64 = 200_000_000_000;
-//     const GENESIS_NAME: &str = "genesis_name";
-//     const DIFFICULTY: usize = 2;
-//     const GENESIS_PRE_MINED: u64 = 2_000_000_000_000_000_000;
-//     const GENESIS_MINER: &str = "Miner";
-//
-//     // Helper function to create a mock configuration for testing
-//     fn mock_config() -> Config {
-//         Config {
-//             token: TokenConfig {
-//                 name: TOKEN_NAME.to_string(),
-//                 symbol: TOKEN_SYMBOL.to_string(),
-//                 decimals: DECIMALS,
-//                 total_supply: TOTAL_SUPPLY,
-//             },
-//             blockchain: BlockchainConfig {
-//                 genesis_name: GENESIS_NAME.to_string(),
-//                 difficulty: DIFFICULTY,
-//                 genesis_pre_mined: GENESIS_PRE_MINED,
-//                 genesis_miner: GENESIS_MINER.to_string(),
-//             },
-//         }
-//     }
-//
-//     // Helper function to create a transaction
-//     fn create_transaction(sender: &str, receiver: &str, amount: u64) -> Transaction {
-//         Transaction::new(sender.to_string(), receiver.to_string(), amount)
-//     }
-//
-//     #[test]
-//     fn test_blockchain_initialization() {
-//         let config: Config = mock_config(); // Use the mock configuration helper
-//                                             // Initialize the blockchain
-//         let blockchain: Blockchain = Blockchain::new(config.clone());
-//         // Validate the token configuration
-//         assert_eq!(
-//             blockchain.token.name, config.token.name,
-//             "Token name does not match the configuration"
-//         );
-//         assert_eq!(
-//             blockchain.token.symbol, config.token.symbol,
-//             "Token symbol does not match the configuration"
-//         );
-//         assert_eq!(
-//             blockchain.token.decimals, config.token.decimals,
-//             "Token decimals do not match the configuration"
-//         );
-//         assert_eq!(
-//             blockchain.token.total_supply, config.token.total_supply,
-//             "Token total supply does not match the configuration"
-//         );
-//         // Validate the genesis account
-//         assert_eq!(
-//             blockchain.accounts.get(&config.blockchain.genesis_miner),
-//             Some(&config.blockchain.genesis_pre_mined),
-//             "Genesis miner account was not initialized with the correct balance"
-//         );
-//         // Validate the genesis block
-//         let genesis_block: &Block = &blockchain.chain[0];
-//         assert_eq!(genesis_block.index, 0, "Genesis block index should be 0");
-//         assert_eq!(
-//             genesis_block.previous_hash, config.blockchain.genesis_name,
-//             "Genesis block previous_hash does not match the configuration"
-//         );
-//         assert_eq!(
-//             genesis_block.transactions.len(),
-//             1,
-//             "Genesis block should contain one dummy transaction"
-//         );
-//         assert_eq!(
-//             genesis_block.transactions[0],
-//             Transaction::new("".to_string(), "".to_string(), 0),
-//             "Genesis block's dummy transaction does not match the expected default"
-//         );
-//         // Validate difficulty
-//         assert_eq!(
-//             blockchain.difficulty, config.blockchain.difficulty,
-//             "Blockchain difficulty does not match the configuration"
-//         );
-//         // Validate mempool
-//         assert!(
-//             blockchain.mempool.is_empty(),
-//             "Mempool should be empty on initialization"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_blockchain_is_valid() {
-//         let mut blockchain: Blockchain = Blockchain::new(mock_config());
-//
-//         // Add valid blocks
-//         let block1_transactions: Vec<Transaction> = vec![
-//             create_transaction("Alice", "Bob", 50),
-//             create_transaction("Bob", "Charlie", 25),
-//         ];
-//         let block1 = Block::new(
-//             1,
-//             block1_transactions.clone(),
-//             blockchain.chain[0].hash.clone(),
-//             mock_config().blockchain.difficulty,
-//         );
-//         blockchain.chain.push(block1);
-//
-//         let block2_transactions: Vec<Transaction> = vec![
-//             create_transaction("Charlie", "Alice", 10),
-//             create_transaction("Alice", "David", 5),
-//         ];
-//         let block2: Block = Block::new(
-//             2,
-//             block2_transactions.clone(),
-//             blockchain.chain[1].hash.clone(),
-//             mock_config().blockchain.difficulty,
-//         );
-//         blockchain.chain.push(block2);
-//
-//         // Test a valid blockchain
-//         assert!(
-//             blockchain.is_valid(),
-//             "Blockchain with valid blocks should be valid"
-//         );
-//
-//         // Tamper with a block (break hash link)
-//         blockchain.chain[1].previous_hash = "tampered_hash".to_string();
-//         assert!(
-//             !blockchain.is_valid(),
-//             "Blockchain with a broken hash link should be invalid"
-//         );
-//
-//         // Restore the link and tamper with a block's hash
-//         blockchain.chain[1].previous_hash = blockchain.chain[0].hash.clone();
-//         blockchain.chain[1].hash = "tampered_hash".to_string();
-//         assert!(
-//             !blockchain.is_valid(),
-//             "Blockchain with a tampered block hash should be invalid"
-//         );
-//
-//         // Restore the hash and tamper with the block's data
-//         blockchain.chain[1].hash = Block::calculate_hash(
-//             blockchain.chain[1].index,
-//             &blockchain.chain[1].timestamp,
-//             &blockchain.chain[1].transactions,
-//             &blockchain.chain[1].previous_hash,
-//             blockchain.chain[1].nonce,
-//         );
-//         blockchain.chain[1].transactions[0] = create_transaction("Alice", "Eve", 9999);
-//         assert!(
-//             !blockchain.is_valid(),
-//             "Blockchain with tampered block data should be invalid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_blockchain_rollback() {
-//         let mut blockchain: Blockchain = Blockchain::new(mock_config());
-//
-//         // Add a valid block first
-//         blockchain.mempool = vec![create_transaction("Alice", "Bob", 30)];
-//         blockchain.add_block();
-//
-//         // Ensure the valid block was added
-//         assert_eq!(
-//             blockchain.chain.len(),
-//             2,
-//             "Blockchain should contain 2 blocks after adding a valid block"
-//         );
-//
-//         // Manually append an invalid block (simulate tampering)
-//         let tampered_block = Block::new(
-//             blockchain.chain.len() as u32,
-//             vec![],
-//             "invalid_previous_hash".to_string(), // Invalid previous hash
-//             blockchain.difficulty,
-//         );
-//         blockchain.chain.push(tampered_block);
-//
-//         // Validate the chain and trigger rollback
-//         if !blockchain.is_valid() {
-//             blockchain.chain.pop(); // Rollback the invalid block
-//         }
-//         // Ensure the chain length remains consistent after rollback
-//         assert_eq!(
-//             blockchain.chain.len(),
-//             2,
-//             "Blockchain length should remain unchanged after rolling back an invalid block"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_empty_address_sender() {
-//         let blockchain: Blockchain = Blockchain::new(mock_config());
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//         let transaction: Transaction = create_transaction("", "Bob", 10);
-//         assert!(
-//             blockchain
-//                 .validate_transaction_with_temp_balances(&transaction, &mut temp_balances)
-//                 .is_err(),
-//             "Transaction with empty sender address should be invalid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_empty_address_receiver() {
-//         let blockchain: Blockchain = Blockchain::new(mock_config());
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//         let transaction: Transaction = create_transaction("Bob", "", 10);
-//         assert!(
-//             blockchain
-//                 .validate_transaction_with_temp_balances(&transaction, &mut temp_balances)
-//                 .is_err(),
-//             "Transaction with empty sender address should be invalid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_same_sender_and_receiver() {
-//         let blockchain: Blockchain = Blockchain::new(mock_config());
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//         let transaction: Transaction = create_transaction("Alice", "Alice", 10);
-//         assert!(
-//             blockchain
-//                 .validate_transaction_with_temp_balances(&transaction, &mut temp_balances)
-//                 .is_err(),
-//             "Transaction where sender and receiver are the same should be invalid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_zero_amount() {
-//         let blockchain: Blockchain = Blockchain::new(mock_config());
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//         let transaction: Transaction = create_transaction("Alice", "Bob", 0);
-//         assert!(
-//             blockchain
-//                 .validate_transaction_with_temp_balances(&transaction, &mut temp_balances)
-//                 .is_err(),
-//             "Transaction with zero amount should be invalid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_insufficient_balance() {
-//         let mut blockchain: Blockchain = Blockchain::new(mock_config());
-//         blockchain.accounts.insert("Alice".to_string(), 50);
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//         let transaction: Transaction = create_transaction("Alice", "Bob", 100);
-//         assert!(
-//             blockchain
-//                 .validate_transaction_with_temp_balances(&transaction, &mut temp_balances)
-//                 .is_err(),
-//             "Transaction where sender has insufficient balance should be invalid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_multiple_transactions_with_insufficient_balance() {
-//         let mut blockchain: Blockchain = Blockchain::new(mock_config());
-//         blockchain.accounts.insert("Alice".to_string(), 100);
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//
-//         let transactions: Vec<Transaction> = vec![
-//             create_transaction("Alice", "Bob", 50),
-//             create_transaction("Alice", "Charlie", 50),
-//             create_transaction("Alice", "David", 50), // Should fail
-//         ];
-//
-//         let valid_transactions: Vec<_> = transactions
-//             .into_iter()
-//             .filter(|tx| {
-//                 blockchain
-//                     .validate_transaction_with_temp_balances(tx, &mut temp_balances)
-//                     .is_ok()
-//             })
-//             .collect();
-//
-//         assert_eq!(
-//             valid_transactions.len(),
-//             2,
-//             "Only two transactions should be valid due to insufficient balance"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_valid_transaction() {
-//         let mut blockchain: Blockchain = Blockchain::new(mock_config());
-//         blockchain.accounts.insert("Alice".to_string(), 100);
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//         let transaction: Transaction = create_transaction("Alice", "Bob", 50);
-//         assert!(
-//             blockchain
-//                 .validate_transaction_with_temp_balances(&transaction, &mut temp_balances)
-//                 .is_ok(),
-//             "Transaction with sufficient balance, valid sender/receiver, and non-zero amount should be valid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_process_mempool() {
-//         let mut blockchain: Blockchain = Blockchain::new(mock_config());
-//         blockchain.accounts.insert("Alice".to_string(), 100);
-//         blockchain.mempool = vec![
-//             create_transaction("Alice", "Bob", 50),
-//             create_transaction("Alice", "Charlie", 30),
-//             create_transaction("Alice", "David", 50), // Should fail
-//         ];
-//
-//         let valid_transactions = blockchain.process_mempool();
-//
-//         assert_eq!(
-//             valid_transactions.len(),
-//             2,
-//             "Only two transactions should be valid and included in the processed mempool"
-//         );
-//         assert!(
-//             blockchain.mempool.is_empty(),
-//             "Mempool should be cleared after processing"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_invalid_sender() {
-//         let blockchain: Blockchain = Blockchain::new(mock_config());
-//         let mut temp_balances: HashMap<String, u64> = blockchain.accounts.clone();
-//         let transaction: Transaction = create_transaction("NonExistent", "Bob", 50);
-//         assert!(
-//             blockchain
-//                 .validate_transaction_with_temp_balances(&transaction, &mut temp_balances)
-//                 .is_err(),
-//             "Transaction with a non-existent sender should be invalid"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_get_transaction_history() {
-//         let mut blockchain: Blockchain = Blockchain::new(mock_config());
-//
-//         // Add initial balances
-//         blockchain.accounts.insert("Alice".to_string(), 100);
-//         blockchain.accounts.insert("Bob".to_string(), 50);
-//         blockchain.accounts.insert("Charlie".to_string(), 30);
-//
-//         // Add some blocks with transactions
-//         let transactions_block1: Vec<Transaction> = vec![
-//             create_transaction("Alice", "Bob", 20),
-//             create_transaction("Bob", "Charlie", 10),
-//         ];
-//         let block1: Block = Block::new(
-//             1,
-//             transactions_block1.clone(),
-//             "genesis_hash".to_string(),
-//             2,
-//         );
-//         blockchain.chain.push(block1);
-//
-//         let transactions_block2: Vec<Transaction> = vec![
-//             create_transaction("Charlie", "Alice", 5),
-//             create_transaction("Alice", "Charlie", 15),
-//         ];
-//         let block2: Block =
-//             Block::new(2, transactions_block2.clone(), "block1_hash".to_string(), 2);
-//         blockchain.chain.push(block2);
-//
-//         // Query Alice's transaction history
-//         let alice_history: Vec<Transaction> =
-//             blockchain.get_transaction_history(&"Alice".to_string());
-//
-//         // Check that all transactions involving Alice are returned
-//         let expected_transactions: Vec<Transaction> = vec![
-//             create_transaction("Alice", "Bob", 20),
-//             create_transaction("Charlie", "Alice", 5),
-//             create_transaction("Alice", "Charlie", 15),
-//         ];
-//         assert_eq!(
-//             alice_history, expected_transactions,
-//             "Transaction history for Alice does not match expected history"
-//         );
-//
-//         // Query Bob's transaction history
-//         let bob_history: Vec<Transaction> = blockchain.get_transaction_history(&"Bob".to_string());
-//         let expected_bob_transactions = vec![
-//             create_transaction("Alice", "Bob", 20),
-//             create_transaction("Bob", "Charlie", 10),
-//         ];
-//         assert_eq!(
-//             bob_history, expected_bob_transactions,
-//             "Transaction history for Bob does not match expected history"
-//         );
-//
-//         // Query an address with no transactions
-//         let no_history: Vec<Transaction> = blockchain.get_transaction_history(&"NoOne".to_string());
-//         assert!(
-//             no_history.is_empty(),
-//             "Transaction history for an address with no transactions should be empty"
-//         );
-//     }
-//
-//     #[test]
-//     fn test_execute_transactions() {
-//         let mut blockchain = Blockchain::new(mock_config());
-//
-//         // Initialize account balances
-//         blockchain.accounts.insert("Alice".to_string(), 100);
-//         blockchain.accounts.insert("Bob".to_string(), 50);
-//
-//         // Create valid transactions
-//         let valid_transactions = vec![
-//             create_transaction("Alice", "Bob", 30), // Alice sends 30 to Bob
-//             create_transaction("Bob", "Alice", 20), // Bob sends 20 to Alice
-//         ];
-//
-//         // Execute the transactions
-//         blockchain.execute_transactions(&valid_transactions);
-//
-//         // Check updated balances
-//         assert_eq!(
-//             blockchain.accounts.get("Alice"),
-//             Some(&90),
-//             "Alice's balance should be updated correctly after transactions"
-//         );
-//         assert_eq!(
-//             blockchain.accounts.get("Bob"),
-//             Some(&60),
-//             "Bob's balance should be updated correctly after transactions"
-//         );
-//     }
-//
-// }
+        let block = blockchain.chain.last().unwrap();
+
+        assert_eq!(block.index, 0, "Genesis index should be 0");
+
+        assert_eq!(
+            block.previous_hash, config.blockchain.genesis_hash,
+            "Genesis block hash should be equal to config.blockchain.genesis_hash"
+        );
+
+        assert_eq!(block.transactions, vec![], "Transactions should be empty");
+    }
+    #[test]
+    fn validate_initial_blockchain_state() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Check that the mempool is empty at initialization
+        assert_eq!(blockchain.mempool, vec![], "Mempool should be empty");
+
+        // Check that the difficulty matches the configuration
+        assert_eq!(
+            blockchain.difficulty, config.blockchain.difficulty,
+            "Difficulty should be equal to config.blockchain.difficulty"
+        );
+
+        // Verify that the accounts are initialized with the genesis miner and pre-mined tokens
+        let mut accounts: HashMap<String, u64> = HashMap::new();
+        accounts.insert(
+            config.blockchain.genesis_miner,
+            config.blockchain.genesis_pre_mined,
+        );
+        assert_eq!(
+            blockchain.accounts, accounts,
+            "Accounts should hold genesis_miner and genesis_pre_mined"
+        );
+
+        // Verify that the token is initialized correctly based on the configuration
+        let token: Token = Token::new(
+            config.token.name,
+            config.token.symbol,
+            config.token.decimals,
+            config.token.total_supply,
+        );
+        assert_eq!(blockchain.token, token, "Token should be equal");
+
+        // Check that the blockchain starts with only the genesis block
+        assert_eq!(
+            blockchain.chain.len(),
+            1,
+            "Blockchain should start with 1 block (genesis)"
+        );
+
+        // Ensure the blockchain is valid upon initialization
+        assert!(blockchain.is_valid(), "Blockchain should be valid");
+    }
+    #[test]
+    fn validate_token_initialization() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let blockchain: Blockchain = Blockchain::new(config.clone()).unwrap();
+
+        assert_eq!(
+            blockchain.token.name, config.token.name,
+            "Token name does not match the configuration"
+        );
+
+        assert_eq!(
+            blockchain.token.total_supply, config.token.total_supply,
+            "Token total_supply does not match the configuration"
+        );
+
+        assert_eq!(
+            blockchain.token.symbol, config.token.symbol,
+            "Token symbol does not match the configuration"
+        );
+
+        assert_eq!(
+            blockchain.token.decimals, config.token.decimals,
+            "Token decimals do not match the configuration"
+        );
+
+        assert_eq!(
+            blockchain.token.smallest_unit,
+            10u64.pow(blockchain.token.decimals as u32),
+            "Smallest unit calculation does not match the configuration"
+        );
+    }
+    #[test]
+    fn pre_mined_cannot_exceed_total_supply() {
+        // Create a mock configuration for the blockchain
+        let mut config = mock_config();
+
+        // Set the pre-mined amount to a value greater than the total token supply
+        config.blockchain.genesis_pre_mined = config.token.total_supply + 1;
+
+        // Attempt to initialize the blockchain with the invalid configuration
+        let blockchain_result: Result<Blockchain, String> = Blockchain::new(config.clone());
+
+        // Assert that the initialization fails with the expected error
+        assert_eq!(
+            blockchain_result.unwrap_err(),
+            "ERR_TOTAL_SUPPLY_LESS_THAN_PRE_MINED",
+            "The blockchain should return an error if the pre-mined tokens exceed the total supply"
+        );
+    }
+    #[test]
+    fn validate_block_addition_to_blockchain() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Assert that the blockchain starts with only the genesis block
+        assert_eq!(
+            blockchain.chain.len(),
+            1,
+            "Blockchain should start with the genesis block"
+        );
+
+        // Add an account with a balance for testing
+        blockchain.accounts.insert("test_a".parse().unwrap(), 100);
+
+        // Add a transaction to the mempool
+        blockchain.mempool.push(Transaction::new(
+            "test_a".parse().unwrap(),
+            "test_b".parse().unwrap(),
+            100,
+        ));
+
+        // Add a new block to the blockchain
+        blockchain.add_block();
+
+        // Get the last block in the chain for validation
+        let block = blockchain.chain.last().unwrap();
+
+        // Assert that the blockchain now contains two blocks (genesis + the new block)
+        assert_eq!(blockchain.chain.len(), 2, "Blockchain should have 2 blocks");
+
+        // Assert that the last block contains exactly one transaction
+        assert_eq!(
+            block.transactions.len(),
+            1,
+            "The last block should contain one transaction"
+        );
+
+        // Assert that the transaction in the block matches the one added to the mempool
+        assert_eq!(
+            block.transactions,
+            vec![Transaction::new(
+                "test_a".parse().unwrap(),
+                "test_b".parse().unwrap(),
+                100
+            )],
+            "Transactions should be added to the last block"
+        );
+
+        // Assert that the block's hash is correctly calculated
+        assert_eq!(
+            block.hash,
+            calculate_block_hash(
+                1,
+                &block.timestamp,
+                &block.transactions,
+                &block.previous_hash,
+                block.nonce,
+            ),
+            "Hash of the last block should match the calculated hash"
+        );
+
+        // Assert that the blockchain is still valid after adding the block
+        assert!(
+            blockchain.is_valid(),
+            "Blockchain should be valid after adding a block"
+        );
+
+        // Assert that the mempool is empty after transactions are added to the new block
+        assert_eq!(
+            blockchain.mempool,
+            vec![],
+            "Mempool should be empty after adding a block"
+        );
+    }
+    #[test]
+    fn tampered_block_invalidates_chain() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Add a valid block
+        blockchain.accounts.insert("test_a".parse().unwrap(), 100);
+        blockchain.mempool.push(Transaction::new(
+            "test_a".parse().unwrap(),
+            "test_b".parse().unwrap(),
+            50,
+        ));
+        blockchain.add_block();
+
+        // Temper the second block
+        let block = blockchain.chain.last_mut().unwrap();
+        block.timestamp = "2025-01-01T00:00:00Z".to_string();
+
+        assert!(
+            !blockchain.is_valid(),
+            "The blockchain should be invalid when a block is tampered with"
+        );
+    }
+    #[test]
+    fn previous_hash_mismatch_invalidates_chain() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Add a valid block
+        blockchain.accounts.insert("test_a".parse().unwrap(), 100);
+        blockchain.mempool.push(Transaction::new(
+            "test_a".parse().unwrap(),
+            "test_b".parse().unwrap(),
+            50,
+        ));
+        blockchain.add_block();
+
+        // Change the previous_hash
+        let block = blockchain.chain.last_mut().unwrap();
+        block.previous_hash = "123456789".to_string();
+
+        assert!(
+            !blockchain.is_valid(),
+            "The blockchain should be invalid when previous hash does not match"
+        );
+    }
+    #[test]
+    fn blockchain_rollback_on_invalid_block() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Add a valid block
+        blockchain.accounts.insert("test_a".to_string(), 100);
+        blockchain.mempool.push(Transaction::new(
+            "test_a".to_string(),
+            "test_b".to_string(),
+            50,
+        ));
+        blockchain.add_block();
+
+        // Tamper with the blockchain to make it invalid
+        let last_block = blockchain.chain.last_mut().unwrap();
+        last_block.previous_hash = "invalid_previous_hash".to_string();
+
+        // Save the chain length before attempting to add the block
+        let chain_length_before = blockchain.chain.len();
+
+        // Add another block (this should trigger a rollback)
+        blockchain.mempool.push(Transaction::new(
+            "test_a".to_string(),
+            "test_b".to_string(),
+            50,
+        ));
+        blockchain.add_block();
+
+        // Assert: Verify the chain length has not increased
+        assert_eq!(
+            blockchain.chain.len(),
+            chain_length_before,
+            "Blockchain length should not increase after adding an invalid block"
+        );
+
+        // Assert: Ensure the blockchain remains invalid
+        assert!(
+            !blockchain.is_valid(),
+            "Blockchain should still be invalid due to tampered block"
+        );
+    }
+    #[test]
+    fn reject_transaction_with_empty_addresses() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
+
+        let mut temp_balances = HashMap::new();
+        temp_balances.insert("Alice".to_string(), 100);
+
+        // Sender is empty
+        let transaction = Transaction::new("".to_string(), "Bob".to_string(), 50);
+        let result = Blockchain::validate_transaction_with_temp_balances(
+            &blockchain,
+            &transaction,
+            &mut temp_balances,
+        );
+        assert_eq!(
+            result,
+            Err(TransactionError::AddressCannotBeEmpty),
+            "Transaction with empty sender should fail"
+        );
+
+        // Receiver is empty
+        let transaction = Transaction::new("Alice".to_string(), "".to_string(), 50);
+        let result = Blockchain::validate_transaction_with_temp_balances(
+            &blockchain,
+            &transaction,
+            &mut temp_balances,
+        );
+        assert_eq!(
+            result,
+            Err(TransactionError::AddressCannotBeEmpty),
+            "Transaction with empty receiver should fail"
+        );
+    }
+    #[test]
+    fn reject_transaction_with_same_sender_and_receiver() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
+
+        let mut temp_balances = HashMap::new();
+        temp_balances.insert("Alice".to_string(), 100);
+
+        // Sender and receiver are the same
+        let transaction = Transaction::new("Alice".to_string(), "Alice".to_string(), 50);
+        let result = Blockchain::validate_transaction_with_temp_balances(
+            &blockchain,
+            &transaction,
+            &mut temp_balances,
+        );
+        assert_eq!(
+            result,
+            Err(TransactionError::SenderAndReceiverCannotBeTheSame),
+            "Transaction with same sender and receiver should fail"
+        );
+    }
+    #[test]
+    fn reject_transaction_with_zero_amount() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
+
+        let mut temp_balances = HashMap::new();
+        temp_balances.insert("Alice".to_string(), 100);
+
+        // Amount is zero
+        let transaction = Transaction::new("Alice".to_string(), "Bob".to_string(), 0);
+        let result = Blockchain::validate_transaction_with_temp_balances(
+            &blockchain,
+            &transaction,
+            &mut temp_balances,
+        );
+        assert_eq!(
+            result,
+            Err(TransactionError::AmountMustBeGreaterThanZero),
+            "Transaction with zero amount should fail"
+        );
+    }
+    #[test]
+    fn reject_transaction_with_insufficient_balance() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
+
+        let mut temp_balances = HashMap::new();
+        temp_balances.insert("Alice".to_string(), 50);
+
+        // Amount exceeds sender's balance
+        let transaction = Transaction::new("Alice".to_string(), "Bob".to_string(), 100);
+        let result = Blockchain::validate_transaction_with_temp_balances(
+            &blockchain,
+            &transaction,
+            &mut temp_balances,
+        );
+        assert_eq!(
+            result,
+            Err(TransactionError::InsufficientBalance {
+                sender: "Alice".to_string(),
+                requested: 100,
+                available: 50,
+            }),
+            "Transaction with insufficient balance should fail"
+        );
+    }
+    #[test]
+    fn reject_transaction_with_unknown_sender() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
+
+        let mut temp_balances = HashMap::new();
+
+        // Sender does not exist in temp_balances
+        let transaction = Transaction::new("Alice".to_string(), "Bob".to_string(), 50);
+        let result = Blockchain::validate_transaction_with_temp_balances(
+            &blockchain,
+            &transaction,
+            &mut temp_balances,
+        );
+        assert_eq!(
+            result,
+            Err(TransactionError::SenderDoesNotExist {
+                sender: "Alice".to_string(),
+            }),
+            "Transaction with sender not in temp_balances should fail"
+        );
+    }
+    #[test]
+    fn validate_successful_transaction() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let blockchain = Blockchain::new(config.clone()).unwrap();
+
+        let mut temp_balances = HashMap::new();
+        temp_balances.insert("Alice".to_string(), 100);
+        temp_balances.insert("Bob".to_string(), 0);
+
+        // Valid transaction
+        let transaction = Transaction::new("Alice".to_string(), "Bob".to_string(), 50);
+        let result = Blockchain::validate_transaction_with_temp_balances(
+            &blockchain,
+            &transaction,
+            &mut temp_balances,
+        );
+        assert!(result.is_ok(), "Valid transaction should succeed");
+
+        // Check updated balances
+        assert_eq!(
+            temp_balances["Alice"], 50,
+            "Sender's balance should be updated"
+        );
+        assert_eq!(
+            temp_balances["Bob"], 50,
+            "Receiver's balance should be updated"
+        );
+    }
+    #[test]
+    fn process_mempool_filters_invalid_transactions() {
+        // Initialize the blockchain with a mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Add some initial accounts and balances
+        blockchain.accounts.insert("Alice".to_string(), 100);
+        blockchain.accounts.insert("Bob".to_string(), 50);
+
+        // Add valid and invalid transactions to the mempool
+        blockchain
+            .mempool
+            .push(Transaction::new("Alice".to_string(), "Bob".to_string(), 50)); // Valid
+        blockchain.mempool.push(Transaction::new(
+            "Alice".to_string(),
+            "Bob".to_string(),
+            200,
+        )); // Invalid: Insufficient balance
+        blockchain.mempool.push(Transaction::new(
+            "Alice".to_string(),
+            "Alice".to_string(),
+            50,
+        )); // Invalid: Sender and receiver are the same
+        blockchain.mempool.push(Transaction::new(
+            "Unknown".to_string(),
+            "Bob".to_string(),
+            50,
+        )); // Invalid: Sender does not exist
+
+        // Act: Process the mempool
+        let valid_transactions = blockchain.process_mempool();
+
+        // Assert: Only valid transactions should be processed
+        assert_eq!(
+            valid_transactions.len(),
+            1,
+            "Only one valid transaction should be processed"
+        );
+        assert_eq!(
+            valid_transactions[0],
+            Transaction::new("Alice".to_string(), "Bob".to_string(), 50),
+            "The valid transaction should match the expected transaction"
+        );
+
+        // Assert: The mempool should be cleared
+        assert_eq!(
+            blockchain.mempool.len(),
+            0,
+            "The mempool should be cleared after processing"
+        );
+    }
+    #[test]
+    fn retrieve_transaction_history() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Add accounts and balances
+        blockchain.accounts.insert("Alice".to_string(), 200);
+        blockchain.accounts.insert("Bob".to_string(), 100);
+        blockchain.accounts.insert("Charlie".to_string(), 300);
+
+        // Add a few transactions
+        blockchain
+            .mempool
+            .push(Transaction::new("Alice".to_string(), "Bob".to_string(), 50));
+        blockchain.add_block(); // Block 1
+
+        blockchain.mempool.push(Transaction::new(
+            "Bob".to_string(),
+            "Charlie".to_string(),
+            30,
+        ));
+        blockchain.mempool.push(Transaction::new(
+            "Alice".to_string(),
+            "Charlie".to_string(),
+            70,
+        ));
+        blockchain.add_block(); // Block 2
+
+        blockchain.mempool.push(Transaction::new(
+            "Charlie".to_string(),
+            "Alice".to_string(),
+            20,
+        ));
+        blockchain.add_block(); // Block 3
+
+        // Get the transaction history for each address
+        let alice_history = blockchain.get_transaction_history(&"Alice".to_string());
+        let bob_history = blockchain.get_transaction_history(&"Bob".to_string());
+        let charlie_history = blockchain.get_transaction_history(&"Charlie".to_string());
+
+        // Verify Alice's transaction history
+        assert_eq!(
+            alice_history,
+            vec![
+                Transaction::new("Alice".to_string(), "Bob".to_string(), 50),
+                Transaction::new("Alice".to_string(), "Charlie".to_string(), 70),
+                Transaction::new("Charlie".to_string(), "Alice".to_string(), 20)
+            ],
+            "Alice's transaction history should include all transactions involving her as sender or receiver"
+        );
+
+        // Verify Bob's transaction history
+        assert_eq!(
+            bob_history,
+            vec![
+                Transaction::new("Alice".to_string(), "Bob".to_string(), 50),
+                Transaction::new("Bob".to_string(), "Charlie".to_string(), 30)
+            ],
+            "Bob's transaction history should include all transactions involving him as sender or receiver"
+        );
+
+        // Verify Charlie's transaction history
+        assert_eq!(
+            charlie_history,
+            vec![
+                Transaction::new("Bob".to_string(), "Charlie".to_string(), 30),
+                Transaction::new("Alice".to_string(), "Charlie".to_string(), 70),
+                Transaction::new("Charlie".to_string(), "Alice".to_string(), 20)
+            ],
+            "Charlie's transaction history should include all transactions involving him as sender or receiver"
+        );
+    }
+}

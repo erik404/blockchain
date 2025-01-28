@@ -21,3 +21,40 @@ impl Transaction {
         format!("{}{}{}", self.sender, self.receiver, self.amount)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn create_new_transaction() {
+        // Arrange: Set up sender, receiver, and amount
+        let sender = "Alice".to_string();
+        let receiver = "Bob".to_string();
+        let amount = 100;
+
+        let transaction = Transaction::new(sender.clone(), receiver.clone(), amount);
+
+        assert_eq!(
+            transaction.sender, sender,
+            "Sender should match the provided value"
+        );
+        assert_eq!(
+            transaction.receiver, receiver,
+            "Receiver should match the provided value"
+        );
+        assert_eq!(
+            transaction.amount, amount,
+            "Amount should match the provided value"
+        );
+    }
+    #[test]
+    fn transaction_stringify() {
+        let transaction = Transaction::new("Alice".to_string(), "Bob".to_string(), 100);
+        let transaction_string = transaction.stringify();
+
+        assert_eq!(
+            transaction_string, "AliceBob100",
+            "Stringified transaction should concatenate sender, receiver, and amount"
+        );
+    }
+}

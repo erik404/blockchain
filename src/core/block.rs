@@ -1,16 +1,16 @@
+use crate::common::calculate_hash::calculate_block_hash;
 use crate::structs::transaction::Transaction;
 use chrono::prelude::*;
-use sha2::{Digest, Sha256};
 
 /// Represents a block in the blockchain.
 #[derive(Debug)]
 pub struct Block {
-    pub index: u32,                     // Block index in the chain
-    pub timestamp: String,              // Timestamp when the block was created
-    pub transactions: Vec<Transaction>, // List of transactions in the block
-    pub previous_hash: String,          // Hash of the previous block
-    pub hash: String,                   // Hash of the current block
-    pub nonce: u64,                     // Nonce used for mining
+    pub index: u32,
+    pub timestamp: String,
+    pub transactions: Vec<Transaction>,
+    pub previous_hash: String,
+    pub hash: String,
+    pub nonce: u64,
 }
 
 impl Block {
@@ -21,18 +21,17 @@ impl Block {
         previous_hash: String,
         difficulty: usize,
     ) -> Self {
-        let timestamp: String = Utc::now().to_rfc3339(); // Generate a current timestamp
-        let mut block: Block = Block {
+        let timestamp = Utc::now().to_rfc3339();
+        let mut block = Block {
             index,
             timestamp,
             transactions,
             previous_hash,
-            hash: String::new(), // Placeholder for hash
-            nonce: 0,            // Start with a nonce of 0
+            hash: String::new(),
+            nonce: 0,
         };
 
-        // Calculate the initial hash
-        block.hash = Block::calculate_hash(
+        block.hash = calculate_block_hash(
             index,
             &block.timestamp,
             &block.transactions,
@@ -40,17 +39,16 @@ impl Block {
             block.nonce,
         );
 
-        // Mine the block to meet the difficulty target
         block.mine(difficulty);
         block
     }
 
     /// Mines the block by adjusting the nonce until the hash meets the difficulty target.
     fn mine(&mut self, difficulty: usize) {
-        let target = "0".repeat(difficulty); // Target prefix based on difficulty
+        let target = "0".repeat(difficulty);
         while !self.hash.starts_with(&target) {
-            self.nonce += 1; // Increment the nonce to find a valid hash
-            self.hash = Block::calculate_hash(
+            self.nonce += 1;
+            self.hash = calculate_block_hash(
                 self.index,
                 &self.timestamp,
                 &self.transactions,
@@ -60,38 +58,164 @@ impl Block {
         }
         println!("Block mined: {}", self.hash);
     }
+}
 
-    /// Calculates the hash of the block based on its properties.
-    pub fn calculate_hash(
-        index: u32,
-        timestamp: &str,
-        transactions: &Vec<Transaction>,
-        previous_hash: &str,
-        nonce: u64,
-    ) -> String {
-        // Concatenate block data into a single string
-        let input = format!(
-            "{}{}{}{}{}",
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::structs::transaction::Transaction;
+    #[test]
+    fn new_block_has_correct_properties() {
+        let index = 1;
+        let transactions = vec![
+            Transaction::new("Alice".to_string(), "Bob".to_string(), 100),
+            Transaction::new("Charlie".to_string(), "Dave".to_string(), 50),
+        ];
+        let previous_hash =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        let difficulty = 2;
+
+        let block = Block::new(
             index,
-            timestamp,
-            Self::transactions_string(transactions),
-            previous_hash,
-            nonce
+            transactions.clone(),
+            previous_hash.clone(),
+            difficulty,
         );
 
-        // Initialize SHA-256 hasher
-        let mut hasher = Sha256::new();
-        hasher.update(input);
-        // Return the hash as a hex string
-        hex::encode(hasher.finalize())
+        // Verify basic properties
+        assert_eq!(block.index, index, "Block index should match");
+        assert_eq!(
+            block.transactions, transactions,
+            "Block transactions should match"
+        );
+        assert_eq!(
+            block.previous_hash, previous_hash,
+            "Previous hash should match"
+        );
+        assert_ne!(block.hash, "", "Block hash should not be empty");
     }
+    #[test]
+    fn mining_generates_valid_block() {
+        // Arrange: Create a block with a low difficulty to ensure quick mining
+        let index = 1;
+        let transactions = vec![Transaction::new(
+            "Alice".to_string(),
+            "Bob".to_string(),
+            100,
+        )];
+        let previous_hash =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        let difficulty = 2; // Low difficulty for test efficiency
 
-    /// Converts the list of transactions into a string for hashing.
-    fn transactions_string(transactions: &Vec<Transaction>) -> String {
-        let mut transactions_string: String = String::new();
-        for transaction in transactions {
-            transactions_string.push_str(transaction.stringify().as_str()); // Serialize each transaction
-        }
-        transactions_string
+        // Create and mine the block
+        let block = Block::new(index, transactions, previous_hash, difficulty);
+
+        // Verify that the block's hash meets the difficulty target
+        let target = "0".repeat(difficulty);
+        assert!(
+            block.hash.starts_with(&target),
+            "Block hash should start with {} zeros to meet difficulty",
+            difficulty
+        );
+    }
+    #[test]
+    fn block_hash_changes_with_nonce() {
+        let index = 1;
+        let transactions = vec![Transaction::new(
+            "Alice".to_string(),
+            "Bob".to_string(),
+            100,
+        )];
+        let previous_hash =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        let difficulty = 1;
+
+        let mut block = Block::new(index, transactions, previous_hash, difficulty);
+
+        // Store the initial hash and mine again to change the nonce
+        let initial_hash = block.hash.clone();
+        block.hash = "".parse().unwrap();
+        block.mine(difficulty);
+
+        // Assert: Verify that the hash has changed after mining
+        assert_ne!(
+            block.hash, initial_hash,
+            "Hash should change after mining with a different nonce"
+        );
+    }
+    #[test]
+    fn deterministic_hash_for_same_properties() {
+        let index = 1;
+        let transactions = vec![Transaction::new(
+            "Alice".to_string(),
+            "Bob".to_string(),
+            100,
+        )];
+        let previous_hash =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        let timestamp = 1223455678.to_string();
+
+        let mut block1 = Block {
+            index,
+            timestamp: timestamp.clone(),
+            transactions: transactions.clone(),
+            previous_hash: previous_hash.clone(),
+            hash: String::new(),
+            nonce: 0,
+        };
+        block1.hash = calculate_block_hash(
+            index,
+            &block1.timestamp,
+            &block1.transactions,
+            &block1.previous_hash,
+            block1.nonce,
+        );
+
+        let mut block2 = Block {
+            index,
+            timestamp,
+            transactions,
+            previous_hash,
+            hash: String::new(),
+            nonce: 0,
+        };
+        block2.hash = calculate_block_hash(
+            index,
+            &block2.timestamp,
+            &block2.transactions,
+            &block2.previous_hash,
+            block2.nonce,
+        );
+
+        // Assert: Verify that both blocks have the same hash (deterministic behavior)
+        assert_eq!(
+            block1.hash, block2.hash,
+            "Blocks with the same properties should have the same hash before mining"
+        );
+    }
+    #[test]
+    fn unique_hash_for_different_blocks() {
+        // Arrange: Create two blocks with different properties
+        let index1 = 1;
+        let index2 = 2;
+        let transactions = vec![Transaction::new(
+            "Alice".to_string(),
+            "Bob".to_string(),
+            100,
+        )];
+        let previous_hash1 =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        let previous_hash2 =
+            "1111111111111111111111111111111111111111111111111111111111111111".to_string();
+        let difficulty = 2;
+
+        // Create two blocks with different inputs
+        let block1 = Block::new(index1, transactions.clone(), previous_hash1, difficulty);
+        let block2 = Block::new(index2, transactions.clone(), previous_hash2, difficulty);
+
+        assert_ne!(
+            block1.hash, block2.hash,
+            "Blocks with different properties should have different hashes"
+        );
     }
 }

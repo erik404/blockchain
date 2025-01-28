@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TransactionError {
     AddressCannotBeEmpty,
     SenderAndReceiverCannotBeTheSame,
@@ -40,5 +40,53 @@ impl std::fmt::Display for TransactionError {
                 write!(f, "Transaction rejected: Sender {} does not exist.", sender)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn transaction_error_message_formatting() {
+        let error = TransactionError::AddressCannotBeEmpty;
+        assert_eq!(
+            format!("{}", error),
+            "Transaction address cannot be empty.",
+            "Display output for AddressCannotBeEmpty is incorrect"
+        );
+
+        let error = TransactionError::SenderAndReceiverCannotBeTheSame;
+        assert_eq!(
+            format!("{}", error),
+            "Sender and receiver cannot be the same.",
+            "Display output for SenderAndReceiverCannotBeTheSame is incorrect"
+        );
+
+        let error = TransactionError::AmountMustBeGreaterThanZero;
+        assert_eq!(
+            format!("{}", error),
+            "Transaction must be greater than zero.",
+            "Display output for AmountMustBeGreaterThanZero is incorrect"
+        );
+
+        let error = TransactionError::InsufficientBalance {
+            sender: "Alice".to_string(),
+            requested: 100,
+            available: 50,
+        };
+        assert_eq!(
+            format!("{}", error),
+            "Transaction rejected: Alice has insufficient balance (100 requested, 50 available).",
+            "Display output for InsufficientBalance is incorrect"
+        );
+
+        let error = TransactionError::SenderDoesNotExist {
+            sender: "Alice".to_string(),
+        };
+        assert_eq!(
+            format!("{}", error),
+            "Transaction rejected: Sender Alice does not exist.",
+            "Display output for SenderDoesNotExist is incorrect"
+        );
     }
 }
