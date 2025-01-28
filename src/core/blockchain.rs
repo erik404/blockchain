@@ -910,4 +910,58 @@ mod tests {
             "Block 2 second transaction should match the expected transaction"
         );
     }
+    #[test]
+    fn high_volume_mempool_block_creation() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Set initial balances
+        blockchain.accounts.insert("Alice".to_string(), 1_000_000); // High balance to handle many transactions
+        blockchain.accounts.insert("Bob".to_string(), 0);
+
+        // Add a large number of transactions to the mempool
+        let num_transactions = 10_000;
+        for i in 0..num_transactions {
+            blockchain.mempool.push(Transaction::new(
+                "Alice".to_string(),
+                format!("Bob_{}", i),
+                1,
+            ));
+        }
+
+        // Process the mempool and add a block
+        let start_time = std::time::Instant::now();
+        blockchain.add_block();
+        let elapsed_time = start_time.elapsed();
+
+        // Verify the block was added
+        assert_eq!(
+            blockchain.chain.len(),
+            2,
+            "Blockchain should contain 2 blocks (genesis + 1 new block)"
+        );
+
+        // Verify all transactions were added to the block
+        let block = blockchain.chain.last().unwrap();
+        assert_eq!(
+            block.transactions.len(),
+            num_transactions,
+            "The new block should contain all transactions from the mempool"
+        );
+
+        // Verify remaining balance of Alice
+        assert_eq!(
+            blockchain.accounts.get("Alice").unwrap(),
+            &(1_000_000 - num_transactions as u64),
+            "Alice's balance should be reduced by the total amount transferred"
+        );
+
+        // Super arbitrary, refine when implementing network and max blocksize
+        println!("Processed {} transactions in {:?}", num_transactions, elapsed_time);
+        assert!(
+            elapsed_time.as_secs() < 1,
+            "Block creation should complete within 1 second"
+        );
+    }
 }
