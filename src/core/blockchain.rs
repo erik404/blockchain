@@ -162,7 +162,10 @@ impl Blockchain {
         if transaction.amount == 0 {
             return Err(TransactionError::AmountMustBeGreaterThanZero);
         }
-
+        let receiver_balance = *temp_balances.entry(transaction.receiver.clone()).or_insert(0);
+        if receiver_balance.checked_add(transaction.amount).is_none() {
+            return Err(TransactionError::BalanceOverflow);
+        }
         let sender_balance: &mut u64 = temp_balances.get_mut(&transaction.sender).ok_or(
             TransactionError::SenderDoesNotExist {
                 sender: transaction.sender.clone(),
@@ -176,7 +179,6 @@ impl Blockchain {
             });
         }
 
-        // Update balances
         *sender_balance -= transaction.amount;
         *temp_balances
             .entry(transaction.receiver.clone())
