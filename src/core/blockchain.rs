@@ -818,4 +818,96 @@ mod tests {
             "No new block should be created when there are no transactions"
         );
     }
+    #[test]
+    fn add_multiple_blocks_and_verify_chain_integrity_and_balances() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Set initial balances
+        blockchain.accounts.insert("Alice".to_string(), 300);
+        blockchain.accounts.insert("Bob".to_string(), 0);
+        blockchain.accounts.insert("Charlie".to_string(), 0);
+
+        // Add transactions to the mempool and add the first block
+        blockchain.mempool.push(Transaction::new(
+            "Alice".to_string(),
+            "Bob".to_string(),
+            100,
+        ));
+        blockchain.add_block();
+
+        // Add more transactions to the mempool and add the second block
+        blockchain.mempool.push(Transaction::new(
+            "Bob".to_string(),
+            "Charlie".to_string(),
+            50,
+        ));
+        blockchain.mempool.push(Transaction::new(
+            "Alice".to_string(),
+            "Charlie".to_string(),
+            50,
+        ));
+        blockchain.add_block();
+
+        // Check the chain length
+        assert_eq!(
+            blockchain.chain.len(),
+            3,
+            "Blockchain should contain 3 blocks (genesis + 2 new blocks)"
+        );
+
+        // Validate the chain integrity
+        assert!(
+            blockchain.is_valid(),
+            "Blockchain should be valid after adding multiple blocks"
+        );
+
+        // Check account balances
+        assert_eq!(
+            blockchain.accounts.get("Alice").unwrap(),
+            &150,
+            "Alice's balance should be updated correctly"
+        );
+        assert_eq!(
+            blockchain.accounts.get("Bob").unwrap(),
+            &50,
+            "Bob's balance should be updated correctly"
+        );
+        assert_eq!(
+            blockchain.accounts.get("Charlie").unwrap(),
+            &100,
+            "Charlie's balance should be updated correctly"
+        );
+
+        // Verify transactions in blocks
+        let block_1 = &blockchain.chain[1];
+        assert_eq!(
+            block_1.transactions.len(),
+            1,
+            "Block 1 should contain 1 transaction"
+        );
+        assert_eq!(
+            block_1.transactions[0],
+            Transaction::new("Alice".to_string(), "Bob".to_string(), 100),
+            "Block 1 transaction should match the expected transaction"
+        );
+
+        let block_2 = &blockchain.chain[2];
+        assert_eq!(
+            block_2.transactions.len(),
+            2,
+            "Block 2 should contain 2 transactions"
+        );
+        assert_eq!(
+            block_2.transactions[0],
+            Transaction::new("Bob".to_string(), "Charlie".to_string(), 50),
+            "Block 2 first transaction should match the expected transaction"
+        );
+        assert_eq!(
+            block_2.transactions[1],
+            Transaction::new("Alice".to_string(), "Charlie".to_string(), 50),
+            "Block 2 second transaction should match the expected transaction"
+        );
+    }
 }
