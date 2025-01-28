@@ -11,6 +11,7 @@ pub enum TransactionError {
     SenderDoesNotExist {
         sender: String,
     },
+    BalanceOverflow,
 }
 
 impl std::fmt::Display for TransactionError {
@@ -39,6 +40,9 @@ impl std::fmt::Display for TransactionError {
             TransactionError::SenderDoesNotExist { sender } => {
                 write!(f, "Transaction rejected: Sender {} does not exist.", sender)
             }
+            TransactionError::BalanceOverflow => {
+                write!(f, "Transaction rejected: Balance overflow.")
+            }
         }
     }
 }
@@ -53,6 +57,13 @@ mod tests {
             format!("{}", error),
             "Transaction address cannot be empty.",
             "Display output for AddressCannotBeEmpty is incorrect"
+        );
+
+        let error = TransactionError::BalanceOverflow;
+        assert_eq!(
+            format!("{}", error),
+            "Transaction rejected: Balance overflow.",
+            "Display output for BalanceOverflow is incorrect"
         );
 
         let error = TransactionError::SenderAndReceiverCannotBeTheSame;
