@@ -798,4 +798,24 @@ mod tests {
             "Charlie's transaction history should include all transactions involving him as sender or receiver"
         );
     }
+    #[test]
+    fn block_is_not_created_without_transactions() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        assert_eq!(
+            blockchain.chain.len(),
+            1,
+            "Blockchain should start with the genesis block"
+        );
+
+        blockchain.add_block();
+
+        assert_eq!(
+            blockchain.chain.len(),
+            1,
+            "No new block should be created when there are no transactions"
+        );
+    }
 }
