@@ -966,4 +966,57 @@ mod tests {
             "Block creation should complete within 1 second"
         );
     }
+    #[test]
+    fn transaction_that_causes_balance_overflow_is_rejected() {
+        // Initialize the blockchain using the mock configuration
+        let config = mock_config();
+        let mut blockchain = Blockchain::new(config.clone()).unwrap();
+
+        // Set up an account with a balance near u64::MAX
+        let near_max_balance = u64::MAX - 10;
+        blockchain.accounts.insert("Alice".to_string(), near_max_balance);
+        blockchain.accounts.insert("Bob".to_string(), 11);
+
+        // Add a transaction that would cause Alice's balance to overflow
+        blockchain.mempool.push(Transaction::new(
+            "Bob".to_string(),
+            "Alice".to_string(),
+            11,
+        ));
+
+        // Attempt to add a block
+        blockchain.add_block();
+
+        // Ensure the blockchain length remains 1 (only the genesis block)
+        assert_eq!(
+            blockchain.chain.len(),
+            1,
+            "Blockchain should not add a block with an overflowing transaction"
+        );
+
+        // Ensure balances remain unchanged
+        assert_eq!(
+            blockchain.accounts.get("Alice").unwrap(),
+            &near_max_balance,
+            "Alice's balance should remain unchanged"
+        );
+        assert_eq!(
+            blockchain.accounts.get("Bob").unwrap(),
+            &11,
+            "Bob's balance should remain unchanged"
+        );
+
+        // Ensure the mempool is cleared (invalid transactions should be removed)
+        assert_eq!(
+            blockchain.mempool.len(),
+            0,
+            "Mempool should be cleared after attempting to add a block"
+        );
+
+        // Ensure the blockchain is still valid
+        assert!(
+            blockchain.is_valid(),
+            "Blockchain should still be valid"
+        );
+    }
 }
