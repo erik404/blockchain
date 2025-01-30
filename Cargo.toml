@@ -9,6 +9,8 @@ hex = "0.4.3"
 chrono = "0.4.39"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_yaml = "0.9.34-deprecated"
+secp256k1 = { version = "0.30.0", features = ["rand"] }
+ripemd = "0.2.0-pre.4"
 
 [dev-dependencies]
 tempfile = "3.15.0"
