@@ -1,30 +1,54 @@
 use crate::config::Config;
 use crate::core::blockchain::Blockchain;
-use crate::structs::transaction::Transaction;
+use crate::core::transaction::Transaction;
+use crate::wallet::wallet::Wallet;
 
 #[cfg(test)]
 mod test_utils;
-
-pub mod errors {
-    pub mod transaction_errors;
-}
 
 pub mod config;
 
 mod common {
     pub mod calculate_hash;
+    pub mod compute_address_from_pub_key;
 }
 
-pub mod core {
+mod core {
     pub mod block;
     pub mod blockchain;
-}
-
-pub mod structs {
     pub mod token;
     pub mod transaction;
 }
+
+mod errors {
+    pub mod transaction_errors;
+}
+
+mod wallet {
+    pub mod wallet;
+}
+
 fn main() {
+    // test_blockchain();
+    test_wallet();
+}
+
+fn test_wallet() {
+    let wallet = Wallet::new();
+    let address = wallet.get_address();
+
+    println!("Address: {:?}", address);
+
+    let mut tx = Transaction::new(address.clone(), "TEST_ADDRESS".to_string(), 100);
+
+    let signature = wallet.sign_transaction(&tx.stringify());
+    tx.sign(signature);
+
+    println!("Signature: {:?}", tx.signature);
+    println!("Signature Verified: {:?}", tx.verify(&wallet.public_key)); // Now requires public key for verification
+}
+
+fn test_blockchain() {
     let config: Config = Config::load().unwrap();
     let mut blockchain: Blockchain = Blockchain::new(config).unwrap();
 
