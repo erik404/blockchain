@@ -1,5 +1,5 @@
 use crate::common::calculate_hash::calculate_block_hash;
-use crate::structs::transaction::Transaction;
+use crate::core::transaction::Transaction;
 use chrono::prelude::*;
 
 /// Represents a block in the blockchain.
@@ -63,7 +63,7 @@ impl Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structs::transaction::Transaction;
+    use crate::core::transaction::Transaction;
     #[test]
     fn new_block_has_correct_properties() {
         let index = 1;

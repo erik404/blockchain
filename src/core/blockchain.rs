@@ -1,9 +1,9 @@
 use crate::common::calculate_hash::calculate_block_hash;
 use crate::config::Config;
 use crate::core::block::*;
+use crate::core::token::Token;
+use crate::core::transaction::Transaction;
 use crate::errors::transaction_errors::*;
-use crate::structs::token::Token;
-use crate::structs::transaction::Transaction;
 use std::collections::HashMap;
 
 /// Represents the blockchain structure.
