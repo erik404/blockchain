@@ -1,4 +1,4 @@
-use crate::structs::transaction::Transaction;
+use crate::core::transaction::Transaction;
 use sha2::{Digest, Sha256};
 
 /// Calculates the hash of the block based on its properties.
@@ -35,7 +35,7 @@ fn transactions_string(transactions: &Vec<Transaction>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structs::transaction::Transaction;
+    use crate::core::transaction::Transaction;
     #[test]
     fn deterministic_and_unique_block_hash() {
         let index = 1;
